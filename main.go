@@ -29,6 +29,7 @@ type Paste struct {
 	Size      string `json:"size"`
 	Syntax    string `json:"syntax"`
 	ScrapeURL string `json:"scrape_url"`
+	User      string `json:"user"`
 }
 
 type Template struct {
@@ -76,7 +77,7 @@ func handleHome(c echo.Context) error {
 
 func handleListPastes(c echo.Context) error {
 	language := c.QueryParam("language")
-	url := "https://scrape.pastebin.com/api_scraping.php?limit=100"
+	url := "https://scrape.pastebin.com/api_scraping.php?limit=250"
 
 	if language != "" && language != "all" {
 		url += "&lang=" + language
@@ -114,6 +115,11 @@ func renderPasteList(pastes []Paste) string {
 			title = "Untitled"
 		}
 
+		author := paste.User
+		if author == "" {
+			author = "Anonymous"
+		}
+
 		timestamp, _ := strconv.ParseInt(paste.Date, 10, 64)
 		createdAt := time.Unix(timestamp, 0)
 
@@ -125,7 +131,10 @@ func renderPasteList(pastes []Paste) string {
                  hx-trigger="click">
                 <div class="font-medium">%s</div>
                 <div class="text-sm text-gray-500 flex items-center justify-between">
-                    <span>%s</span>
+                    <div>
+                        <span class="text-blue-600">@%s</span>
+                        <span class="ml-2">%s</span>
+                    </div>
                     <div>
                         <span class="px-2 py-1 bg-gray-100 rounded-full text-xs">
                             %s
@@ -138,6 +147,7 @@ func renderPasteList(pastes []Paste) string {
             </div>`,
 			paste.Key, paste.Syntax,
 			title,
+			author,
 			createdAt.Format("2006-01-02 15:04"),
 			paste.Syntax,
 			paste.Size,
