@@ -14,6 +14,9 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -51,12 +54,24 @@ var (
 	cacheMutex sync.RWMutex
 )
 
+type RunRequest struct {
+	Code     string `json:"code"`
+	Language string `json:"language"`
+}
+
+type RunResponse struct {
+	Output string `json:"output"`
+}
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		panic("Error loading .env file")
 	}
 
 	e := echo.New()
+
+	// Serve static files
+	e.Static("/static", "static")
 
 	t := &Template{
 		templates: template.Must(template.ParseGlob("views/*.html")),
@@ -67,6 +82,7 @@ func main() {
 	e.GET("/", handleHome)
 	e.GET("/pastes", handleListPastes)
 	e.GET("/paste/:key", handleViewPaste)
+	e.POST("/run", handleRun)
 
 	e.Start(":8080")
 }
@@ -160,7 +176,24 @@ func renderPasteList(pastes []Paste) string {
 func handleViewPaste(c echo.Context) error {
 	key := c.Param("key")
 	language := c.QueryParam("language")
-	if language == "" {
+
+	// Map Pastebin syntax to supported languages
+	languageMap := map[string]string{
+		"go":         "go",
+		"python":     "python",
+		"javascript": "javascript",
+		"java":       "java",
+		"cpp":        "cpp",
+		"csharp":     "csharp",
+		"php":        "php",
+		"ruby":       "ruby",
+		"swift":      "swift",
+		"rust":       "rust",
+	}
+
+	if mapped, ok := languageMap[language]; ok {
+		language = mapped
+	} else {
 		language = "plaintext"
 	}
 
@@ -218,4 +251,56 @@ func handleViewPaste(c echo.Context) error {
             <pre class="bg-gray-50 rounded p-2 h-full"><code class="language-%s">%s</code></pre>
         </div>
     `, copyScript, language, content))
+}
+
+func handleRun(c echo.Context) error {
+	var req RunRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, RunResponse{Output: "Invalid request"})
+	}
+
+	switch req.Language {
+	case "go":
+		return handleGoExecution(c, req)
+	// case "python":
+	// 	return handlePythonExecution(c, req)
+	// Add more languages as needed
+
+	default:
+		return c.JSON(http.StatusBadRequest, RunResponse{
+			Output: "Unsupported language: " + req.Language,
+		})
+	}
+}
+
+func handleGoExecution(c echo.Context, req RunRequest) error {
+	// Create a temporary directory
+	dir, err := os.MkdirTemp("", "playground")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, RunResponse{
+			Output: "Failed to create temp directory",
+		})
+	}
+	defer os.RemoveAll(dir)
+
+	// Write the code to a file
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(req.Code), 0644); err != nil {
+		return c.JSON(http.StatusInternalServerError, RunResponse{
+			Output: "Failed to write code file",
+		})
+	}
+
+	// Run the code
+	cmd := exec.Command("go", "run", "main.go")
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return c.JSON(http.StatusOK, RunResponse{
+			Output: string(output),
+		})
+	}
+
+	return c.JSON(http.StatusOK, RunResponse{
+		Output: string(output),
+	})
 }
