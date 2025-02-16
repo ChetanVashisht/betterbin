@@ -1,23 +1,78 @@
 class Playground {
     constructor() {
+        this.supportedLanguages = ['go', 'python', 'ruby'];
+        this.initElements();
+        this.setupEventListeners();
+        this.hideCliContainer(); // Initially hide
+        
+        // Make clearViewer available globally
+        window.clearViewer = () => {
+            const pasteContent = document.getElementById('paste-content');
+            if (pasteContent) {
+                pasteContent.innerHTML = `
+                    <div class="text-gray-500 text-center mt-4">
+                        Select a paste to view its contents
+                    </div>
+                `;
+            }
+            
+            const pasteList = document.getElementById('paste-list');
+            if (pasteList) {
+                pasteList.scrollTop = 0;
+            }
+            
+            this.hideCliContainer();
+        };
+    }
+
+    initElements() {
         this.terminal = document.getElementById('terminal');
         this.output = document.getElementById('output');
         this.input = document.getElementById('cli-input');
         this.runBtn = document.getElementById('run-btn');
         this.clearBtn = document.getElementById('clear-btn');
-        
-        this.setupEventListeners();
+        this.cliContainer = document.getElementById('cli-container');
     }
 
     setupEventListeners() {
-        this.runBtn.addEventListener('click', () => this.runCode());
-        this.clearBtn.addEventListener('click', () => this.clear());
-        this.input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.handleInput(e.target.value);
-                e.target.value = '';
-            }
+        if (this.runBtn) {
+            this.runBtn.addEventListener('click', () => this.runCode());
+        }
+        if (this.clearBtn) {
+            this.clearBtn.addEventListener('click', () => this.clear());
+        }
+        if (this.input) {
+            this.input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleInput(e.target.value);
+                    e.target.value = '';
+                }
+            });
+        }
+
+        // Listen for HTMX content updates
+        document.body.addEventListener('htmx:afterSettle', () => {
+            this.checkLanguageSupport();
         });
+    }
+
+    hideCliContainer() {
+        if (this.cliContainer) {
+            this.cliContainer.style.display = 'none';
+        }
+    }
+
+    checkLanguageSupport() {
+        const codeElement = document.querySelector('#paste-content code');
+        if (!codeElement || !this.cliContainer) {
+            this.hideCliContainer();
+            return;
+        }
+
+        const classes = codeElement.className.split(' ');
+        const languageClass = classes.find(cls => cls.startsWith('language-'))?.replace('language-', '') || 'plaintext';
+        
+        this.cliContainer.style.display = this.supportedLanguages.includes(languageClass) ? 'block' : 'none';
     }
 
     async runCode() {
@@ -31,14 +86,7 @@ class Playground {
         const languageMap = {
             'go': 'go',
             'python': 'python',
-            'javascript': 'javascript',
-            'java': 'java',
-            'cpp': 'cpp',
-            'csharp': 'csharp',
-            'php': 'php',
-            'ruby': 'ruby',
-            'swift': 'swift',
-            'rust': 'rust',
+            'ruby': 'ruby'
         };
 
         const language = languageMap[languageClass] || 'plaintext';
@@ -82,4 +130,7 @@ class Playground {
     }
 }
 
-new Playground(); 
+// Initialize the playground when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.playground = new Playground();
+}); 

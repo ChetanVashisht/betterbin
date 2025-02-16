@@ -1,11 +1,36 @@
 package main
 
 /**
+
+15/02/2025
+
 (1) Can we add a filter langauge option to the table so the api fetches that content for that language (we can start with 10 languages)
 (2) Let's highlight the row that's being shown on the right
 (3) Let's add some syntax highlighting to the viewer
 (4) let's add caching on the serverside for each paste so we don't need to refetch it
 (5) Let's add a copy functionality to the viewer
+
+I'm happy to call the project a success as a v1.
+---------------------------------
+15/02/2025
+
+For v2 here's the list
+(1) Let's update the rows to include the username
+(2) pastebin provies a way to view all pastes created by a user, so clicking the username will show us all his pastes
+(3) Another button in the viewer to clone a paste (i.e copy the contents of the paste and create it in my account using the api)
+---------------------------------
+16/02/2025
+
+There was a problem with pastebin's api,
+I'm getting 403 for any api including login. Have messaged customer support.
+
+Pivoting to a different v2.
+
+---------------------------------
+16/02/2025
+
+Let's pivot to v2 in a different way. There are some programs that I think are safe to run locally. Let's run those on the browser in required language with support for some standard libraries.
+The new layout contains three parts, the viewer splits into two. A viewer from earlier and a cli window below it. Where we can run and interact with the program.
 */
 
 import (
@@ -181,12 +206,12 @@ func handleViewPaste(c echo.Context) error {
 	languageMap := map[string]string{
 		"go":         "go",
 		"python":     "python",
+		"ruby":       "ruby",
 		"javascript": "javascript",
 		"java":       "java",
 		"cpp":        "cpp",
 		"csharp":     "csharp",
 		"php":        "php",
-		"ruby":       "ruby",
 		"swift":      "swift",
 		"rust":       "rust",
 	}
@@ -262,10 +287,10 @@ func handleRun(c echo.Context) error {
 	switch req.Language {
 	case "go":
 		return handleGoExecution(c, req)
-	// case "python":
-	// 	return handlePythonExecution(c, req)
-	// Add more languages as needed
-
+	case "python":
+		return handlePythonExecution(c, req)
+	case "ruby":
+		return handleRubyExecution(c, req)
 	default:
 		return c.JSON(http.StatusBadRequest, RunResponse{
 			Output: "Unsupported language: " + req.Language,
@@ -292,6 +317,64 @@ func handleGoExecution(c echo.Context, req RunRequest) error {
 
 	// Run the code
 	cmd := exec.Command("go", "run", "main.go")
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return c.JSON(http.StatusOK, RunResponse{
+			Output: string(output),
+		})
+	}
+
+	return c.JSON(http.StatusOK, RunResponse{
+		Output: string(output),
+	})
+}
+
+func handlePythonExecution(c echo.Context, req RunRequest) error {
+	dir, err := os.MkdirTemp("", "playground")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, RunResponse{
+			Output: "Failed to create temp directory",
+		})
+	}
+	defer os.RemoveAll(dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "main.py"), []byte(req.Code), 0644); err != nil {
+		return c.JSON(http.StatusInternalServerError, RunResponse{
+			Output: "Failed to write code file",
+		})
+	}
+
+	cmd := exec.Command("python3", "main.py")
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return c.JSON(http.StatusOK, RunResponse{
+			Output: string(output),
+		})
+	}
+
+	return c.JSON(http.StatusOK, RunResponse{
+		Output: string(output),
+	})
+}
+
+func handleRubyExecution(c echo.Context, req RunRequest) error {
+	dir, err := os.MkdirTemp("", "playground")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, RunResponse{
+			Output: "Failed to create temp directory",
+		})
+	}
+	defer os.RemoveAll(dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "main.rb"), []byte(req.Code), 0644); err != nil {
+		return c.JSON(http.StatusInternalServerError, RunResponse{
+			Output: "Failed to write code file",
+		})
+	}
+
+	cmd := exec.Command("ruby", "main.rb")
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
